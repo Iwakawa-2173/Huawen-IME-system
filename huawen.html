@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="art">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>华文IME (华文于ㄌㄚㄊㄧㄋ)</title>
+<link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+<link rel="icon" href="favicon.ico" type="image/x-icon">
+<style>
+	@font-face {
+		font-family: "NotoSerifCJKtc";
+		src: url("NotoSerifCJKtc-Medium.otf") format("opentype");
+		font-weight: normal;
+		font-style: normal;
+	}
+	body { font-family: NotoSerifCJKtc, serif; margin: 20px; }
+
+  #container {
+    position: relative;
+    width: 100%;
+  }
+	#ime-input {
+    position: relative;
+    background: transparent;
+    color: transparent; /* скрываем латинский текст */
+    caret-color: black; /* курсор виден */
+    font-family: NotoSerifCJKtc, serif;
+    font-size: 18px;
+    padding: 10px;
+    height: 150px;
+    width: 100%;
+    outline: none;
+    border: 1px solid #ccc;
+    resize: none;
+    line-height: 1.4em;
+    z-index: 2;
+    overflow: auto;
+    box-sizing: border-box;
+  }
+  #ime-input.hide-caret {
+    caret-color: transparent !important;
+  }
+  #preview {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    padding: 10px;
+    font-family: NotoSerifCJKtc, serif;
+    font-size: 18px;
+    line-height: 1.4em;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: black;
+    pointer-events: none;
+    border: 1px solid transparent;
+    overflow-y: auto;
+    z-index: 1;
+    background: white;
+    box-sizing: border-box;
+  }
+
+	#candidates { border: 1px solid #ccc; max-width: 400px; margin-top: 5px; cursor: pointer; background: white; }
+	#candidates div { padding: 6px 10px; }
+	#candidates div:hover, #candidates .selected { background-color: #def; }
+	#status { margin-top: 10px; color: #666; font-size: 14px; }
+
+	#output { width: 100%; height: 120px; font-size: 1.2em; white-space: pre-wrap; word-wrap: break-word; padding: 10px; margin-top: 1em; }
+  button { margin-top: 1em; padding: 0.5em 1em; font-size: 1em; }
+
+  .underline {
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+<h2>华文 IME (v1.2)</h2>
+
+<img src="beihua_flag.jpg" alt="beihua_flag.jpg" width="10%"></img>
+
+<div id="container">
+  <textarea id="ime-input" placeholder="音写..."></textarea>
+  <div id="preview" aria-hidden="true"></div>
+</div>
+
+<div id="candidates" style="display:none;"></div>
+<div id="status"></div>
+
+<br />
+<button id="convert-btn">ㄌㄚㄊㄧㄋ于化</button>
+<h2>ㄌㄚㄊㄧㄋ的最后 (布可以):</h2>
+<pre id="output"></pre>
+<br />
+© 北华民国 (Republic of Beihua), 2025
+
+<script>
+window.onload = function() {
+	var textarea = document.getElementById('ime-input');
+	textarea.focus();
+	textarea.select();
+};
+
+const mappingVariants = {
+	"ata": ["私"],
+	"er": ["而", "二", "而是", "二民主主义", "ㄦ"],
+	"an": ["安", "ㄢ"],
+	"ai": ["愛", "ㄞ"],
+	"z": ["ㄗ"],
+	"zh": ["ㄓ"],
+	"j": ["ㄐ"],
+	"g": ["ㄍ"],
+	"d": ["ㄉ"],
+	"b": ["ㄅ"],
+	"i": ["一", "已", "異", "已经", "依", "一边", "一直", "一下", "益", "义", "已从", "已来", "ㄧㄧㄥㄉㄨ教", "一行星", "ㄧ", "ㄧㄧ"],
+	"yi": ["一", "已", "異", "已经", "依", "以", "一边", "一直", "一下", "益", "义", "已从", "已来", "ㄧㄧㄥㄉㄨ教", "一行星", "ㄧ", "ㄧㄧ"],
+	"en": ["ㄣ"],
+	"n": ["ㄋ"],
+	"ei": ["ㄟ国", "ㄟ"],
+	"o": ["ㄛ"],
+	"c": ["ㄘ"],
+	"ch": ["ㄔ"],
+	"q": ["ㄑ"],
+	"k": ["ㄎ"],
+	"t": ["ㄊ"],
+	"p": ["ㄆ"],
+	"u": ["ㄨ"],
+	"w": ["ㄨ"],
+	"ang": ["ㄤ"],
+	"angna": ["你", "ㄤㄋㄚ"],
+	"in": ["ㄧㄣ"],
+	"ao": ["ㄠ"],
+	"e": ["绘", "恶", "恶言", "恶泽", "恶心", "恶业", "恶王", "恶楽业", "恶王国", "绘萨", "ㄜ"],
+	"ye": ["也", "也是", "夜", "叶", "业", "ㄝ", "夜時", "业后", "夜空", "ㄧㄜ"],
+	"s": ["ㄙ"],
+	"sh": ["ㄕ"],
+	"x": ["ㄒ"],
+	"h": ["ㄏ"],
+	"m": ["ㄇ"],
+	"yue": ["月","ㄧㄨㄜ"],
+	"ng": ["ㄥ"],
+	"ong": ["ㄨㄥ"],
+	"eng": ["ㄥ"],
+	"ou": ["ㄡ"],
+	"r": ["ㄖ"],
+	"l": ["ㄌ"],
+	"f": ["ㄈ"],
+	"`": [" "],
+	",": [","],
+	"~~": ["~"],
+	"-": ["—"],
+	"--": ["——"],
+	"~": [String.fromCharCode(0x3000)],
+	"/": [String.fromCharCode(0x3001)],
+	".": [String.fromCharCode(0x3002)],
+	" ": [""],
+	"...": ["……"],
+	"[": ["「", "『", "〈", "《",],
+	"]": ["」", "』", "〉", "》"],
+
+	// Сложные слоги (примеры), добавляем целиком для корректного поиска
+	"ba": ["八", "ㄅㄚ"],
+	"bo": ["ㄅㄛ"],
+	"be": ["ㄅㄜ"],
+	"bi": ["比", "ㄅㄧ"],
+	"bian": ["边", "边在国", "ㄅㄧㄢ"],
+	"bu": ["不", "仏", "布", "怖", "不是", "不氣", "不加", "不客氣", "不白容", "布线", "仏教", "仏寺", "ㄅㄨ"],
+	"bv": ["ㄅㄩ"],
+	"bai": ["白", "百", "白ㄖㄛㄒㄧㄚ", "白ㄖㄛㄒㄧㄚ共和国", "ㄅㄞ"],
+	"bei": ["被", "北", "北国", "北华", "北京", "ㄅㄟ"],
+	"bui": ["ㄅㄨㄟ"],
+	"bao": ["貴", "报", "宝", "宝塔", "ㄅㄠ"],
+	"bou": ["ㄅㄡ"],
+	"biu": ["ㄅㄧㄡ"],
+	"bie": ["ㄅㄧㄝ"],
+	"bve": ["ㄅㄩㄝ"],
+	"ber": ["ㄅㄦ"],
+	"ban": ["半", "半衰", "半衰期", "ㄅㄢ"],
+	"ben": ["本", "本粒子", "ㄅㄣ"],
+	"bin": ["ㄅㄧㄣ"],
+	"bun": ["ㄅㄨㄣ"],
+	"bvn": ["ㄅㄩㄣ"],
+	"bang": ["ㄅㄤ"],
+	"beng": ["ㄅㄥ"],
+	"bing": ["兵", "病", "ㄅㄧㄥ"],
+	"bong": ["ㄅㄨㄥ"],
+	"biang": ["ㄅㄧㄤ"],
+	"biong": ["ㄅㄩㄥ"],
+	"buang": ["ㄅㄨㄤ"],
+	"bueng": ["ㄅㄨㄥ"],
+	"pa": ["ㄆㄚ"],
+	"po": ["ㄆㄛ"],
+	"pe": ["ㄆㄜ"],
+	"pi": ["ㄆㄧ"],
+	"pu": ["菩", "菩萨", "ㄆㄨ"],
+	"pv": ["ㄆㄩ"],
+	"pai": ["ㄆㄞ"],
+	"pei": ["ㄆㄟ"],
+	"pui": ["ㄆㄨㄟ"],
+	"pao": ["ㄆㄠ"],
+	"pou": ["ㄆㄡ"],
+	"piu": ["ㄆㄧㄡ"],
+	"pie": ["ㄆㄧㄝ"],
+	"pve": ["ㄆㄩㄝ"],
+	"per": ["ㄆㄦ"],
+	"pan": ["ㄆㄢ"],
+	"pen": ["ㄆㄣ"],
+	"pin": ["拼", "拼音", "ㄆㄧㄣ"],
+	"pun": ["ㄆㄨㄣ"],
+	"pvn": ["ㄆㄩㄣ"],
+	"pang": ["ㄆㄤ"],
+	"peng": ["朋", "朋友", "ㄆㄥ"],
+	"ping": ["平", "平和", "ㄆㄧㄥ"],
+	"pong": ["ㄆㄨㄥ"],
+	"piang": ["ㄆㄧㄤ"],
+	"piong": ["ㄆㄩㄥ"],
+	"puang": ["ㄆㄨㄤ"],
+	"pueng": ["ㄆㄨㄥ"],
+	"ma": ["吗", "母", "嘛", "马", "ㄇㄚㄎㄜㄙㄧ主义", "ㄇㄚ"],
+	"jian": ["见", "見", "简", "見口", "見音菩萨", "ㄐㄧㄢ"],
+	"mo": ["ㄇㄛㄙㄨㄎㄚㄨㄜ市", "ㄇㄛ"],
+	"me": ["么", "ㄇㄜ"],
+	"mi": ["米", "ㄇㄧ"],
+	"mu": ["目", "木", "木星", "木漏日", "ㄇㄨ"],
+	"mv": ["ㄇㄩ"],
+	"mai": ["ㄇㄞ"],
+	"mei": ["没", "美", "妹", "美丽", "没有", "ㄇㄟ"],
+	"mui": ["ㄇㄨㄟ"],
+	"mao": ["猫", "毛", "毛泽东", "毛泽东思想", "ㄇㄠ"],
+	"mou": ["冇", "冇痛", "冇永私", "冇不氣本粒子", "ㄇㄡ"],
+	"miu": ["ㄇㄧㄡ"],
+	"mie": ["ㄇㄧㄝ"],
+	"mve": ["ㄇㄩㄝ"],
+	"mer": ["ㄇㄦ"],
+	"man": ["ㄇㄢ"],
+	"men": ["们", "闷", "门", "闷热", "ㄇㄣ"],
+	"menre": ["闷热", "ㄇㄣㄖㄜ"],
+	"min": ["民", "民国", "民族", "民族主义", "民选王", "民主主义", "ㄇㄧㄣ"],
+	"mun": ["ㄇㄨㄣ"],
+	"mvn": ["ㄇㄩㄣ"],
+	"mang": ["ㄇㄤ"],
+	"meng": ["梦", "梦間", "ㄇㄥ"],
+	"ming": ["命", "名", "冥", "明", "明日", "明明日", "冥王星", "冥兵", "冥想", "ㄇㄧㄥ"],
+	"mong": ["ㄇㄨㄥ"],
+	"miang": ["ㄇㄧㄤ"],
+	"miong": ["ㄇㄩㄥ"],
+	"mian": ["面", "ㄇㄧㄢ"],
+	"muang": ["ㄇㄨㄤ"],
+	"mueng": ["ㄇㄨㄥ"],
+	"fa": ["法", "法轮", "法卫神", "法皈依村", "ㄈㄚ"],
+	"fo": ["ㄈㄛ"],
+	"fe": ["ㄈㄜ"],
+	"fi": ["ㄈㄧ"],
+	"fu": ["服", "父", "福", "符", "服务", "ㄈㄨ"],
+	"fv": ["ㄈㄩ"],
+	"fai": ["ㄈㄞ"],
+	"fei": ["飞", "飞物", "飞家", "ㄈㄟ"],
+	"fui": ["ㄈㄨㄟ"],
+	"fao": ["ㄈㄠ"],
+	"fou": ["ㄈㄡ"],
+	"fiu": ["ㄈㄧㄡ"],
+	"fie": ["ㄈㄧㄝ"],
+	"fve": ["ㄈㄩㄝ"],
+	"fer": ["ㄈㄦ"],
+	"fan": ["反", "反革命", "反天主法业", "反上帝法业", "ㄈㄢ"],
+	"fen": ["忿", "粉", "忿神", "ㄈㄣ"],
+	"fin": ["ㄈㄧㄣ"],
+	"fun": ["ㄈㄨㄣ"],
+	"fvn": ["ㄈㄩㄣ"],
+	"fang": ["方", "ㄈㄤ"],
+	"feng": ["風", "風病", "風鈴", "ㄈㄥ"],
+	"fing": ["ㄈㄧㄥ"],
+	"fong": ["ㄈㄨㄥ"],
+	"fiang": ["ㄈㄧㄤ"],
+	"fiong": ["ㄈㄩㄥ"],
+	"fuang": ["ㄈㄨㄤ"],
+	"fueng": ["ㄈㄨㄥ"],
+	"da": ["大", "达", "达赖喇嘛", "大风", "大雨", "大泽", "大哥大", "大学", "大加", "大比筷", "大造好", "大法", "大恶业", "大高集萨", "大学生", "大学生集", "达赖喇嘛", "大海先生", "大高集萨", "大鬼王", "ㄉㄚ"],
+	"do": ["ㄉㄛㄧㄕㄜ", "ㄉㄛ"],
+	"de": ["的", "地", "对", "地球", "地球人", "ㄉㄜ"],
+	"di": ["帝", "帝国", "ㄉㄧ"],
+	"du": ["ㄉㄨ"],
+	"dv": ["ㄉㄩ"],
+	"dai": ["带", "带布", "ㄉㄞ"],
+	"dei": ["ㄉㄟ"],
+	"dui": ["ㄉㄨㄟ"],
+	"dao": ["道", "岛", "道教", "ㄉㄠ"],
+	"dou": ["都", "ㄉㄡ"],
+	"diu": ["ㄉㄧㄡ"],
+	"die": ["ㄉㄧㄝ"],
+	"dve": ["ㄉㄩㄝ"],
+	"der": ["ㄉㄦ"],
+	"dan": ["但", "但是", "ㄉㄢ"],
+	"dian": ["电", "电脳", "电雨", "ㄉㄧㄢ"],
+	"den": ["ㄉㄣ"],
+	"din": ["ㄉㄧㄣ"],
+	"dun": ["ㄉㄨㄣ"],
+	"dvn": ["ㄉㄩㄣ"],
+	"dang": ["党", "ㄉㄤ"],
+	"deng": ["灯", "ㄉㄥ"],
+	"ding": ["定", "ㄉㄧㄥ"],
+	"dongfang": ["东方", "ㄉㄨㄥㄈㄤ"],
+	"dong": ["东", "冬", "动", "东方", "ㄉㄨㄥ"],
+	"diang": ["ㄉㄧㄤ"],
+	"diong": ["ㄉㄩㄥ"],
+	"duang": ["ㄉㄨㄤ"],
+	"dueng": ["ㄉㄨㄥ"],
+	"ta": ["她", "他", "它", "塔", "她的", "他的", "它的", "她们", "他们", "它们", "ㄊㄚ"],
+	"to": ["問", "ㄊㄛ"],
+	"te": ["ㄊㄜ"],
+	"ti": ["体", "ㄊㄧ"],
+	"tu": ["兔", "土", "使", "徒", "ㄊㄨ"],
+	"tv": ["ㄊㄩ"],
+	"tai": ["太", "台", "太阳", "太阳集", "台湾","ㄊㄞ"],
+	"tei": ["ㄊㄟ"],
+	"tui": ["腿", "ㄊㄨㄟ"],
+	"tao": ["ㄊㄠ"],
+	"tou": ["ㄊㄡ"],
+	"tiu": ["ㄊㄧㄡ"],
+	"tie": ["ㄊㄧㄝ"],
+	"tve": ["ㄊㄩㄝ"],
+	"ter": ["ㄊㄦ"],
+	"tan": ["ㄊㄢ"],
+	"ten": ["ㄊㄣ"],
+	"tin": ["ㄊㄧㄣ"],
+	"tun": ["ㄊㄨㄣ"],
+	"tvn": ["ㄊㄩㄣ"],
+	"tang": ["堂", "堂行", "堂囗", "堂囗布", "ㄊㄤ"],
+	"teng": ["転", "ㄊㄥ"],
+	"ting": ["ㄊㄧㄥ"],
+	"tong": ["同", "痛", "同志", "痛心", "痛苦", "ㄊㄨㄥ"],
+	"tiang": ["ㄊㄧㄤ"],
+	"tiong": ["ㄊㄩㄥ"],
+	"tuang": ["ㄊㄨㄤ"],
+	"tueng": ["ㄊㄨㄥ"],
+	"na": ["那", "哪", "那里", "那们", "哪的", "那们的","ㄋㄚ"],
+	"no": ["吗", "ㄋㄛ"],
+	"ne": ["ㄋㄜ"],
+	"ni": ["你", "你们", "你好", "你们好", "你好吗", "你们好吗", "ㄋㄧ"],
+	"nu": ["女", "女子", "ㄋㄨ"],
+	"nv": ["ㄋㄩ"],
+	"nai": ["ㄋㄞ"],
+	"nei": ["ㄋㄟ"],
+	"nui": ["ㄋㄨㄟ"],
+	"nao": ["脳", "脳服", "ㄋㄠ"],
+	"nou": ["ㄋㄡ"],
+	"niu": ["钮", "ㄋㄧㄡ"],
+	"nie": ["ㄋㄧㄝ"],
+	"nve": ["ㄋㄩㄝ"],
+	"ner": ["ㄋㄦ"],
+	"nan": ["男", "南", "男子", "南京", "ㄋㄢ"],
+	"nen": ["ㄋㄣ"],
+	"nin": ["ㄋㄧㄣ"],
+	"nun": ["ㄋㄨㄣ"],
+	"nvn": ["ㄋㄩㄣ"],
+	"nang": ["ㄋㄤ"],
+	"neng": ["能", "ㄋㄥ"],
+	"ning": ["ㄋㄧㄥ"],
+	"nong": ["ㄋㄨㄥ"],
+	"niang": ["ㄋㄧㄤ"],
+	"nian": ["年", "ㄋㄧㄢ"],
+	"niong": ["ㄋㄩㄥ"],
+	"nuang": ["ㄋㄨㄤ"],
+	"nueng": ["ㄋㄨㄥ"],
+	"la": ["喇", "喇嘛", "ㄌㄚ"],
+	"lo": ["ㄌㄛ"],
+	"le": ["楽", "了", "楽音", "楽氣", "楽心", "ㄌㄜ"],
+	"li": ["粒", "理", "丽", "力", "粒子", "ㄌㄧ"],
+	"lian": ["恋", "联", "联社族", "联社族家", "ㄌㄧㄢ"],
+	"lu": ["绿", "陆", "ㄌㄨ"],
+	"lv": ["ㄌㄩ"],
+	"lai": ["来", "赖", "ㄌㄞ"],
+	"lei": ["涙", "ㄌㄟ"],
+	"zuo": ["昨", "昨日", "昨昨日", "ㄗㄨㄛ"],
+	"lui": ["ㄌㄨㄟ"],
+	"lao": ["老", "老师", "老外", "老九", "ㄌㄠ"],
+	"lou": ["漏", "ㄌㄡ"],
+	"liu": ["六", "流", "流入家", "ㄌㄧㄡ"],
+	"jia": ["加", "伽", "加入", "ㄐㄧㄚ"],
+	"jiao": ["教", "教师", "教堂", "教会", "ㄐㄧㄚㄛ"],
+	"lie": ["ㄌㄧㄝㄋㄧㄥ主义", "ㄌㄧㄝㄋㄧㄥ市", "ㄌㄧㄝ"],
+	"lve": ["ㄌㄩㄝ"],
+	"ler": ["ㄌㄦ"],
+	"lan": ["蓝", "ㄌㄢ"],
+	"len": ["ㄌㄣ"],
+	"lin": ["林", "ㄌㄧㄣ"],
+	"lun": ["ㄌㄨㄣ"],
+	"lvn": ["ㄌㄩㄣ"],
+	"lang": ["ㄌㄤ"],
+	"leng": ["ㄌㄥ"],
+	"ling": ["鈴", "ㄌㄧㄥ"],
+	"long": ["ㄌㄨㄥ"],
+	"liang": ["ㄌㄧㄤ"],
+	"liong": ["ㄌㄩㄥ"],
+	"luang": ["ㄌㄨㄤ"],
+	"lueng": ["ㄌㄨㄥ"],
+	"ga": ["ㄍㄚ"],
+	"go": ["ㄍㄛ"],
+	"ge": ["个", "革", "歌", "哥", "革命", "革命家", "ㄍㄜ"],
+	"gi": ["ㄍㄧ"],
+	"gu": ["ㄍㄨ"],
+	"guo": ["国", "果", "国家", "国民", "国民党", "国旗", "国集联", "国家主义", "国民主义", "ㄍㄨㄛ"],
+	"guan": ["管", "管不", "管主", "管心", "ㄍㄨㄢ"],
+	"gua": ["ㄍㄨㄚ"],
+	"gv": ["ㄍㄩ"],
+	"gai": ["该", "ㄍㄞ"],
+	"gei": ["ㄍㄟ"],
+	"gui": ["鬼", "皈", "皈依", "ㄍㄨㄟ"],
+	"gao": ["高", "高考", "高天原", "ㄍㄠ"],
+	"gou": ["ㄍㄡ"],
+	"luo": ["落", "ㄌㄨㄛ"],
+	"giu": ["ㄍㄧㄡ"],
+	"gie": ["ㄍㄧㄝ"],
+	"gve": ["ㄍㄩㄝ"],
+	"ger": ["ㄍㄦ"],
+	"gan": ["干", "感", "感涙", "ㄍㄢ"],
+	"gen": ["ㄍㄣ"],
+	"gin": ["ㄍㄧㄣ"],
+	"gun": ["ㄍㄨㄣ"],
+	"gvn": ["ㄍㄩㄣ"],
+	"gang": ["刚", "刚刚", "ㄍㄤ"],
+	"geng": ["ㄍㄥ"],
+	"ging": ["ㄍㄧㄥ"],
+	"gong": ["弓", "共", "共産", "共社", "共和国", "共産党", "共主院", "共産主义", "共主国集", "共主院国国", "共主院国集联", "共主院社会主义共和国国集联", "ㄍㄨㄥ"],
+	"giang": ["ㄍㄧㄤ"],
+	"giong": ["ㄍㄩㄥ"],
+	"guang": ["光", "光本粒子", "光带落天使", "ㄍㄨㄤ"],
+	"gueng": ["ㄍㄨㄥ"],
+	"ka": ["家", "ㄎㄚ"],
+	"ko": ["ㄎㄛ"],
+	"ke": ["可", "科", "客", "可以", "可愛", "可用", "科学", "可愛心", "ㄎㄜ"],
+	"ki": ["菊", "ㄎㄧ"],
+	"ku": ["苦", "苦界", "ㄎㄨ"],
+	"kv": ["ㄎㄩ"],
+	"kai": ["会", "ㄎㄞ"],
+	"kei": ["ㄎㄟ"],
+	"kui": ["ㄎㄨㄟ"],
+	"kao": ["考", "ㄎㄠ"],
+	"kou": ["口", "ㄎㄡ"],
+	"kiu": ["ㄎㄧㄡ"],
+	"kie": ["ㄎㄧㄝ"],
+	"kve": ["ㄎㄩㄝ"],
+	"ker": ["ㄎㄦ"],
+	"kan": ["ㄎㄢ"],
+	"ken": ["ㄎㄣ"],
+	"kin": ["ㄎㄧㄣ"],
+	"kun": ["ㄎㄨㄣ"],
+	"kvn": ["ㄎㄩㄣ"],
+	"kang": ["間", "ㄎㄤ"],
+	"keng": ["坑", "坑市的战卫母", "ㄎㄥ"],
+	"king": ["ㄎㄧㄥ"],
+	"kong": ["空", "恐", "空間", "恐心", "恐氣", "恐怖", "空飞物", "ㄎㄨㄥ"],
+	"kiang": ["ㄎㄧㄤ"],
+	"kiong": ["ㄎㄩㄥ"],
+	"kuang": ["ㄎㄨㄤ"],
+	"kueng": ["ㄎㄨㄥ"],
+	"ha": ["ㄏㄚ"],
+	"ho": ["ㄏㄛ"],
+	"he": ["和", "何", "和平", "ㄏㄜㄌㄧㄉㄜㄍㄚㄖㄧㄉㄚㄩㄛㄋㄅㄧㄋㄍㄜㄋ", "ㄏㄜ"],
+	"hi": ["ㄏㄧ"],
+	"hu": ["回", "ㄏㄨ"],
+	"huo": ["火", "或", "火花", "火星", "ㄏㄨㄛ"],
+	"hv": ["ㄏㄩ"],
+	"hai": ["海", "海行物", "海行家", "ㄏㄞ"],
+	"hei": ["黑", "ㄏㄟ"],
+	"hui": ["ㄏㄨㄟ"],
+	"hua": ["花", "华", "化", "話", "花火", "华文", "ㄏㄨㄚ"],
+	"hao": ["好", "号", "好业", "ㄏㄠ"],
+	"hou": ["后", "活", "候", "ㄏㄡ"],
+	"hiu": ["ㄏㄧㄡ"],
+	"hie": ["ㄏㄧㄝ"],
+	"hve": ["ㄏㄩㄝ"],
+	"her": ["ㄏㄦ"],
+	"han": ["寒", "寒心", "寒氣", "ㄏㄢ"],
+	"hen": ["ㄏㄣ"],
+	"hin": ["ㄏㄧㄣ"],
+	"hun": ["ㄏㄨㄣ"],
+	"hvn": ["ㄏㄩㄣ"],
+	"hang": ["ㄏㄤ"],
+	"heng": ["ㄏㄥ"],
+	"hing": ["ㄏㄧㄥ"],
+	"hong": ["红", "红黄", "红军", "红旗", "红卫兵", "红军党", "红布线", "ㄏㄨㄥ"],
+	"hongweibing": ["红卫兵", "ㄏㄨㄥㄨㄟㄅㄧㄥ"],
+	"weibing": ["红卫兵", "ㄨㄟㄅㄧㄥ"],
+	"hiang": ["ㄏㄧㄤ"],
+	"hiong": ["ㄏㄩㄥ"],
+	"huang": ["黄", "ㄏㄨㄤ"],
+	"hueng": ["ㄏㄨㄥ"],
+	"ja": ["ㄐㄚ"],
+	"jo": ["ㄐㄛ"],
+	"je": ["ㄐㄜ"],
+	"ji": ["時", "集", "记", "時間", "時說", "時說家", "记覚", "時空", "集缘", "记覚不", "ㄐㄧ"],
+	"ju": ["ㄐㄨ"],
+	"jv": ["ㄐㄩ"],
+	"jai": ["ㄐㄞ"],
+	"jei": ["ㄐㄟ"],
+	"jui": ["ㄐㄨㄟ"],
+	"jao": ["ㄐㄠ"],
+	"jou": ["ㄐㄡ"],
+	"jiu": ["九", "ㄐㄧㄡ"],
+	"jie": ["姐", "界", "ㄐㄧㄝ"],
+	"jve": ["ㄐㄩㄝ"],
+	"jer": ["ㄐㄦ"],
+	"jan": ["ㄐㄢ"],
+	"jen": ["ㄐㄣ"],
+	"jin": ["尽", "金", "今", "今日", "行星", "军兵", "金星", "ㄐㄧㄣ"],
+	"jun": ["军", "ㄐㄨㄣ"],
+	"jvn": ["ㄐㄩㄣ"],
+	"jang": ["ㄐㄤ"],
+	"jeng": ["ㄐㄥ"],
+	"jing": ["经", "京", "净", "净土", "ㄐㄧㄥ"],
+	"jong": ["ㄐㄨㄥ"],
+	"jiang": ["ㄐㄧㄤ"],
+	"jiong": ["ㄐㄩㄥ"],
+	"juang": ["ㄐㄨㄤ"],
+	"jueng": ["ㄐㄨㄥ"],
+	"qa": ["ㄑㄚ"],
+	"qo": ["ㄑㄛ"],
+	"qe": ["ㄑㄜ"],
+	"ae": ["与", "ㄚㄜ"],
+	"qi": ["氣", "起","七", "泣", "期", "旗", "起来", "期知", "期衰业", "期萨言", "氣心萨", "期萨布", "氣本粒子", "ㄑㄧ"],
+	"qiao": ["桥", "ㄑㄧㄠ"],
+	"qu": ["去", "ㄑㄨ"],
+	"quan": ["犬", "全", "全国管", "全族杀", "全世界反联社族战争", "ㄑㄨㄢ"],
+	"qv": ["ㄑㄩ"],
+	"qai": ["ㄑㄞ"],
+	"qei": ["ㄑㄟ"],
+	"qui": ["ㄑㄨㄟ"],
+	"qao": ["ㄑㄠ"],
+	"qou": ["ㄑㄡ"],
+	"qiu": ["秋", "球", "球状闪电", "ㄑㄧㄡ"],
+	"qie": ["ㄑㄧㄝ"],
+	"qve": ["ㄑㄩㄝ"],
+	"qer": ["ㄑㄦ"],
+	"qan": ["ㄑㄢ"],
+	"qen": ["ㄑㄣ"],
+	"qin": ["ㄑㄧㄣ"],
+	"qun": ["ㄑㄨㄣ"],
+	"qvn": ["ㄑㄩㄣ"],
+	"qang": ["ㄑㄤ"],
+	"qeng": ["ㄑㄥ"],
+	"qing": ["请", "青", "青年", "ㄑㄧㄥ"],
+	"qong": ["ㄑㄨㄥ"],
+	"qiang": ["抢", "ㄑㄧㄤ"],
+	"qiong": ["ㄑㄩㄥ"],
+	"quang": ["ㄑㄨㄤ"],
+	"queng": ["ㄑㄨㄥ"],
+	"xa": ["ㄒㄚ"],
+	"xo": ["ㄒㄛ"],
+	"xe": ["ㄒㄜ"],
+	"xi": ["西", "席", "ㄒㄧ"],
+	"xu": ["ㄒㄨ"],
+	"xue": ["雪", "学", "血", "学校", "学院", "学生集", "ㄒㄨㄜ"],
+	"xiao": ["小", "小川", "小山", "小法", "校"],
+	"xv": ["ㄒㄩ"],
+	"xai": ["ㄒㄞ"],
+	"xei": ["ㄒㄟ"],
+	"xui": ["ㄒㄨㄟ"],
+	"xao": ["ㄒㄠ"],
+	"xou": ["ㄒㄡ"],
+	"xiu": ["ㄒㄧㄡ"],
+	"xie": ["写", "谢", "谢谢", "ㄒㄧㄝ"],
+	"xiexie": ["谢谢", "ㄒㄧㄝㄒㄧㄝ"],
+	"xuan": ["选", "ㄒㄨㄢ"],
+	"jue": ["覚", "ㄐㄨㄜ"],
+	"xve": ["ㄒㄩㄝ"],
+	"xer": ["ㄒㄦ"],
+	"xan": ["ㄒㄢ"],
+	"xen": ["ㄒㄣ"],
+	"xin": ["心", "新", "新中国", "ㄒㄧㄣ"],
+	"xun": ["ㄒㄨㄣ"],
+	"xvn": ["ㄒㄩㄣ"],
+	"xang": ["ㄒㄤ"],
+	"xeng": ["ㄒㄥ"],
+	"xing": ["行", "姓", "幸", "心流", "星", "星星", "行线", "幸福", "心中", "星集", "星共集", "ㄒㄧㄥ"],
+	"xong": ["ㄒㄨㄥ"],
+	"xiang": ["先", "想", "ㄒㄧㄢ"],
+	"xia": ["下", "夏", "夏天", "下囗", "下囗布", "下海行家", "下水家", "ㄒㄧㄚ"],
+	"tian": ["天", "田", "天使", "天照", "天照大御神", "天飞母", "天主", "天人萨", "天王国", "天界", "天王星", "天主本粒子", "天人萨教", "天主教", "ㄊㄧㄢ"],
+	"xian": ["下", "先", "线", "先生", "ㄒㄧㄚ"],
+	"xiong": ["兄", "ㄒㄩㄥ"],
+	"xuang": ["ㄒㄨㄤ"],
+	"xueng": ["ㄒㄨㄥ"],
+	"zha": ["ㄓㄚ"],
+	"zho": ["ㄓㄛ"],
+	"zhe": ["这", "这个", "这里", "这的", "这们", "这们的", "ㄓㄜ"],
+	"tongzhi": ["同志", "ㄊㄨㄥㄓㄧ"],
+	"zhi": ["直", "知", "纸", "志", "植", "知子", "志务", "ㄓㄧ"],
+	"zhu": ["主", "注", "注音符号", "主义", "主席", "ㄓㄨ"],
+	"zhv": ["ㄓㄩ"],
+	"zhai": ["ㄓㄞ"],
+	"zhei": ["ㄓㄟ"],
+	"zhui": ["ㄓㄨㄟ"],
+	"zhao": ["朝", "照", "朝時", "朝国", "朝食", "ㄓㄠ"],
+	"zhou": ["宙", "宙飞物", "宙飞家", "ㄓㄡ"],
+	"zhiu": ["ㄓㄧㄡ"],
+	"zhie": ["ㄓㄧㄝ"],
+	"zhve": ["ㄓㄩㄝ"],
+	"zher": ["ㄓㄦ"],
+	"zhan": ["战", "战争", "ㄓㄢ"],
+	"zhen": ["真", "真理", "真主", "真主教", "ㄓㄣ"],
+	"zhin": ["ㄓㄧㄣ"],
+	"zhun": ["ㄓㄨㄣ"],
+	"zhvn": ["ㄓㄩㄣ"],
+	"zhang": ["ㄓㄤ"],
+	"zheng": ["争", "正", "正覚", "正覚", "正覚法", "ㄓㄥ"],
+	"zhing": ["ㄓㄧㄥ"],
+	"zhong": ["中", "终", "中心", "中国", "中华", "终于", "中心人民全国管", "中华人民共和国", "中华民国", "ㄓㄨㄥ"],
+	"zhiang": ["ㄓㄧㄤ"],
+	"zhiong": ["ㄓㄩㄥ"],
+	"zhuang": ["状", "ㄓㄨㄤ"],
+	"zhueng": ["ㄓㄨㄥ"],
+	"cha": ["茶", "ㄔㄚ"],
+	"cho": ["ㄔㄛ"],
+	"che": ["ㄔㄜ"],
+	"chi": ["ㄔㄧ"],
+	"chu": ["出", "ㄔㄨ"],
+	"chv": ["ㄔㄩ"],
+	"chai": ["ㄔㄞ"],
+	"chei": ["ㄔㄟ"],
+	"chui": ["ㄔㄨㄟ"],
+	"chao": ["ㄔㄠ"],
+	"chou": ["ㄔㄡ"],
+	"chiu": ["ㄔㄧㄡ"],
+	"chie": ["ㄔㄧㄝ"],
+	"chve": ["ㄔㄩㄝ"],
+	"cher": ["ㄔㄦ"],
+	"chan": ["産", "禅", "蝉", "禅绘萨", "ㄔㄢ"],
+	"chen": ["ㄔㄣ"],
+	"chin": ["ㄔㄧㄣ"],
+	"chun": ["春", "ㄔㄨㄣ"],
+	"chvn": ["ㄔㄩㄣ"],
+	"chang": ["常", "常常", "ㄔㄤ"],
+	"cheng": ["橙", "ㄔㄥ"],
+	"ching": ["ㄔㄧㄥ"],
+	"chong": ["虫", "ㄔㄨㄥ"],
+	"niao": ["鸟", "ㄋㄧㄠ"],
+	"chiang": ["ㄔㄧㄤ"],
+	"chiong": ["ㄔㄩㄥ"],
+	"chuang": ["ㄔㄨㄤ"],
+	"chuan": ["川", "川口", "ㄔㄨㄢ"],
+	"chueng": ["ㄔㄨㄥ"],
+	"sha": ["杀", "ㄕㄚ"],
+	"sho": ["ㄕㄛ"],
+	"she": ["社", "社益營", "社会", "社族", "社族争", "社益營家", "社会主义", "ㄕㄜ"],
+	"shi": ["是", "食", "死", "十", "诗", "市", "世", "师", "食造", "世界", "市民", "死營", "ㄕㄧ"],
+	"shu": ["数", "数学", "数字", "数学家", "ㄕㄨ"],
+	"shuo": ["說", "ㄕㄨㄛ"],
+	"shv": ["ㄕㄩ"],
+	"shai": ["ㄕㄞ"],
+	"shei": ["谁", "谁的", "ㄕㄟ"],
+	"shui": ["水", "ㄕㄨㄟ"],
+	"shuai": ["衰", "ㄕㄨㄞ"],
+	"shao": ["ㄕㄠ"],
+	"shou": ["手", "收", "說", "收起", "說不", "ㄕㄡ"],
+	"shiu": ["ㄕㄧㄡ"],
+	"shie": ["ㄕㄧㄝ"],
+	"shve": ["ㄕㄩㄝ"],
+	"sher": ["ㄕㄦ"],
+	"shan": ["山", "闪", "闪雨", "闪电", "ㄕㄢ"],
+	"shen": ["什", "什么", "什候", "什么的", "什候的", "ㄕㄣ"],
+	"shenme": ["什么", "ㄕㄣㄇㄜ"],
+	"shin": ["ㄕㄧㄣ"],
+	"shun": ["ㄕㄨㄣ"],
+	"shvn": ["ㄕㄩㄣ"],
+	"shang": ["上", "上海", "上囗", "上帝", "ㄕㄤ"],
+	"sheng": ["神", "生", "身", "声", "身服", "神道", "神社", "身彗間", "身彗容", "生物学", "生物学家", "ㄕㄥ"],
+	"shing": ["ㄕㄧㄥ"],
+	"shong": ["ㄕㄨㄥ"],
+	"shiang": ["ㄕㄧㄤ"],
+	"shiong": ["ㄕㄩㄥ"],
+	"shuang": ["ㄕㄨㄤ"],
+	"shueng": ["ㄕㄨㄥ"],
+	"ra": ["ㄖㄚ"],
+	"ro": ["ㄖㄛㄒㄧㄚ", "ㄖㄛㄒㄧㄚ国集联", "ㄖㄛㄒㄧㄚ帝国", "ㄖㄛ"],
+	"re": ["热", "ㄖㄜ"],
+	"ri": ["日", "日益", "日食", "日本", "日時", "日本红军", "ㄖㄧ"],
+	"ru": ["如", "入", "如何", "如果", "入口", "ㄖㄨ"],
+	"rv": ["ㄖㄩ"],
+	"rai": ["ㄖㄞ"],
+	"rei": ["ㄖㄟ"],
+	"rui": ["ㄖㄨㄟ"],
+	"rao": ["ㄖㄠ"],
+	"rou": ["ㄖㄡ"],
+	"riu": ["ㄖㄧㄡ"],
+	"rie": ["ㄖㄧㄝ"],
+	"rve": ["ㄖㄩㄝ"],
+	"rer": ["ㄖㄦ"],
+	"ran": ["然", "然后", "ㄖㄢ"],
+	"ren": ["人", "人民", "人造", "人造人", "人造卫星", "人民为服务", "ㄖㄣ"],
+	"rin": ["ㄖㄧㄣ"],
+	"run": ["ㄖㄨㄣ"],
+	"rvn": ["ㄖㄩㄣ"],
+	"rang": ["ㄖㄤ"],
+	"reng": ["ㄖㄥ"],
+	"ring": ["ㄖㄧㄥ"],
+	"rong": ["容", "ㄖㄨㄥ"],
+	"riang": ["ㄖㄧㄤ"],
+	"riong": ["ㄖㄩㄥ"],
+	"ruang": ["ㄖㄨㄤ"],
+	"rueng": ["ㄖㄨㄥ"],
+	"za": ["ㄗㄚ"],
+	"zo": ["ㄗㄛ"],
+	"ze": ["泽", "泽东", "ㄗㄜ"],
+	"zi": ["子", "字", "紫", "自", "子共", "自由", "自行物", "自国集联", "自由主义", "ㄗㄧ"],
+	"zu": ["族", "祖", "祖国", "祖人", "祖国人", "族恶見", "ㄗㄨ"],
+	"zv": ["ㄗㄩ"],
+	"zai": ["再", "在", "再见", "在那边", "再禅言", "ㄗㄞ"],
+	"zei": ["ㄗㄟ"],
+	"zui": ["最", "最后", "ㄗㄨㄟ"],
+	"zao": ["造", "造业", "造泽", "ㄗㄠ"],
+	"zou": ["ㄗㄡ"],
+	"ziu": ["ㄗㄧㄡ"],
+	"zie": ["ㄗㄧㄝ"],
+	"zve": ["ㄗㄩㄝ"],
+	"zer": ["ㄗㄦ"],
+	"zan": ["咱", "咱们", "咱们的", "ㄗㄢ"],
+	"zen": ["ㄗㄣ"],
+	"zin": ["ㄗㄧㄣ"],
+	"zun": ["ㄗㄨㄣ"],
+	"zvn": ["ㄗㄩㄣ"],
+	"zang": ["ㄗㄤ"],
+	"zeng": ["ㄗㄥ"],
+	"zing": ["ㄗㄧㄥ"],
+	"zong": ["ㄗㄨㄥ"],
+	"ziang": ["ㄗㄧㄤ"],
+	"ziong": ["ㄗㄩㄥ"],
+	"zuang": ["ㄗㄨㄤ"],
+	"zueng": ["ㄗㄨㄥ"],
+	"ca": ["ㄘㄚ"],
+	"co": ["ㄘㄛ"],
+	"ce": ["測", "測定", "ㄘㄜ"],
+	"ci": ["次", "ㄘㄧ"],
+	"cu": ["ㄘㄨ"],
+	"cv": ["ㄘㄩ"],
+	"cai": ["ㄘㄞ"],
+	"cei": ["ㄘㄟ"],
+	"cui": ["ㄘㄨㄟ"],
+	"cao": ["草", "ㄘㄠ"],
+	"cou": ["ㄘㄡ"],
+	"ciu": ["ㄘㄧㄡ"],
+	"cie": ["ㄘㄧㄝ"],
+	"cve": ["ㄘㄩㄝ"],
+	"cer": ["ㄘㄦ"],
+	"can": ["ㄘㄢ"],
+	"cen": ["ㄘㄣ"],
+	"cin": ["ㄘㄧㄣ"],
+	"cun": ["村", "村民", "ㄘㄨㄣ"],
+	"cvn": ["ㄘㄩㄣ"],
+	"cang": ["ㄘㄤ"],
+	"ceng": ["ㄘㄥ"],
+	"cing": ["ㄘㄧㄥ"],
+	"cong": ["从", "ㄘㄨㄥ"],
+	"ciang": ["ㄘㄧㄤ"],
+	"ciong": ["ㄘㄩㄥ"],
+	"cuang": ["ㄘㄨㄤ"],
+	"cueng": ["ㄘㄨㄥ"],
+	"sa": ["桜", "萨", "咲", "萨师子仏", "ㄙㄚ"],
+	"so": ["宗", "宗教", "ㄙㄛ"],
+	"se": ["色", "ㄙㄜ"],
+	"si": ["四", "思", "寺", "思想", "ㄙㄧ"],
+	"su": ["ㄙㄨ"],
+	"sv": ["ㄙㄩ"],
+	"sai": ["ㄙㄞ"],
+	"sei": ["ㄙㄟ"],
+	"sui": ["岁", "彗", "彗星", "ㄙㄨㄟ"],
+	"sao": ["ㄙㄠ"],
+	"sou": ["ㄙㄡ"],
+	"siu": ["ㄙㄧㄡ"],
+	"sie": ["ㄙㄧㄝ"],
+	"sve": ["ㄙㄩㄝ"],
+	"ser": ["ㄙㄦ"],
+	"san": ["三", "三体聞問", "三宝", "三萨", "三民主义", "ㄙㄢ"],
+	"sen": ["森", "ㄙㄣ"],
+	"sin": ["ㄙㄧㄣ"],
+	"sun": ["ㄙㄨㄣ"],
+	"svn": ["ㄙㄩㄣ"],
+	"sang": ["ㄙㄤ"],
+	"seng": ["僧", "僧伽", "ㄙㄥ"],
+	"sing": ["ㄙㄧㄥ"],
+	"song": ["送", "ㄙㄨㄥ"],
+	"siang": ["ㄙㄧㄤ"],
+	"siong": ["ㄙㄩㄥ"],
+	"suang": ["ㄙㄨㄤ"],
+	"sueng": ["ㄙㄨㄥ"],
+	"wa": ["笑", "哇", "ㄨㄚ"],
+	"wo": ["我", "我们", "ㄨㄛ"],
+	"we": ["轮", "轮回", "ㄨㄜ"],
+	"wi": ["ㄨㄧ"],
+	"wu": ["物", "务", "五", "物理", "物理家", "ㄨㄨㄎㄚㄌㄢㄋㄚ", "ㄨㄨ"],
+	"wv": ["ㄨㄩ"],
+	"wai": ["外", "外面", "外国人", "外星人", "ㄨㄞ"],
+	"wei": ["为", "未", "伟", "卫", "囗", "未来", "未祖人", "伟大", "卫星", "卫兵", "卫国主义", "伟大祖国战争", "ㄨㄟ"],
+	"weida": ["伟大", "ㄨㄟㄉㄚ"],
+	"wui": ["ㄨㄨㄟ"],
+	"wao": ["ㄨㄠ"],
+	"wou": ["ㄨㄡ"],
+	"wiu": ["ㄨㄧㄡ"],
+	"wie": ["ㄨㄧㄝ"],
+	"wve": ["ㄨㄩㄝ"],
+	"wer": ["ㄨㄦ"],
+	"wan": ["万","完", "晚", "湾", "万物", "万岁", "晚時", "晚食", "ㄨㄢ"],
+	"wen": ["文", "聞", "温", "文化", "温服", "温心", "温氣", "聞問", "温大愛氣", "温友愛仏", "文化大革命", "ㄨㄣ"],
+	"win": ["ㄨㄧㄣ"],
+	"wun": ["ㄨㄨㄣ"],
+	"wvn": ["ㄨㄩㄣ"],
+	"wang": ["王", "王国", "ㄨㄤ"],
+	"weng": ["ㄨㄥ"],
+	"wing": ["ㄨㄧㄥ"],
+	"wong": ["ㄨㄨㄥ"],
+	"wiang": ["ㄨㄧㄤ"],
+	"wiong": ["ㄨㄩㄥ"],
+	"wuang": ["ㄨㄨㄤ"],
+	"wueng": ["ㄨㄨㄥ"],
+	"ya": ["ㄧㄚ"],
+	"yo": ["ㄧㄛ"],
+	"yu": ["語", "于", "雨", "宇", "狱", "御", "魚", "宇宙", "語学", "宇宙学", "宇宙学家", "ㄩ", "ㄧㄨ"],
+	"yuan": ["院", "远", "円", "缘", "原", "缘联", "ㄧㄨㄢ"],
+	"qian": ["钱", "钱本", "钱本家", "ㄑㄧㄢ"],
+	"yv": ["ㄧㄩ"],
+	"yai": ["ㄧㄞ"],
+	"yei": ["ㄧㄟ"],
+	"yui": ["ㄧㄨㄟ"],
+	"yao": ["要", "ㄧㄠ"],
+	"you": ["又", "有", "优", "由", "友", "优心", "ㄧㄡ"],
+	"yiu": ["ㄧㄧㄡ"],
+	"yie": ["ㄧㄧㄝ"],
+	"yve": ["ㄧㄩㄝ"],
+	"yer": ["ㄧㄦ"],
+	"yan": ["言", "岩", "ㄧㄢ"],
+	"yen": ["ㄧㄣ"],
+	"yin": ["飲", "因", "阴", "音", "ㄧㄧㄣ"],
+	"kuai": ["筷", "ㄎㄨㄞ"],
+	"yun": ["云", "运", "运命", "运命時", "ㄧㄨㄣ"],
+	"yvn": ["ㄧㄩㄣ"],
+	"yang": ["阳", "ㄧㄤ"],
+	"yeng": ["ㄧㄥ"],
+	"ying": ["应", "營", "应该", "ㄧㄧㄥ"],
+	"yong": ["永", "可", "用", "永私", "ㄧㄨㄥ"],
+	"yiang": ["ㄧㄧㄤ"],
+	"yiong": ["ㄧㄩㄥ"],
+	"yuang": ["ㄧㄨㄤ"],
+	"yueng": ["ㄧㄨㄥ"],
+	"a": ["与", "啊", "ㄚㄇㄟㄌㄧㄎㄚ", "ㄚ"],
+	"o": ["ㄛ"],
+	"y": ["ㄧ"],
+	"u": ["ㄨ"],
+	"v": ["ㄩ"],
+	"ei": ["ㄟ"],
+	"ui": ["ㄨㄟ"],
+	"ao": ["ㄠ"],
+	"ou": ["ㄡ"],
+	"iu": ["ㄧㄡ"],
+	"ie": ["ㄧㄝ"],
+	"ve": ["ㄩㄝ"],
+	"an": ["安", "ㄢ"],
+	"en": ["ㄣ"],
+	"in": ["ㄧㄣ"],
+	"un": ["ㄨㄣ"],
+	"vn": ["ㄩㄣ"],
+	"ang": ["ㄤ"],
+	"eng": ["ㄥ"],
+	"ing": ["ㄧㄥ"],
+	"ong": ["ㄨㄥ"],
+	"iang": ["ㄧㄤ"],
+	"iong": ["ㄩㄥ"],
+	"uang": ["ㄨㄤ"],
+	"ueng": ["ㄨㄥ"]
+};
+
+const input = document.getElementById('ime-input');
+const preview = document.getElementById('preview');
+const candidatesBox = document.getElementById('candidates');
+const status = document.getElementById('status');
+
+let composing = ''; // текущий латинский слог
+let originalText = ''; // исходный текст до выбора кандидатов
+let originalCursor = 0; // позиция курсора в исходном тексте
+let previewing = false; // флаг, что сейчас предпросмотр
+let previewCandidateChar = ''; // текущий кандидат для предпросмотра
+let replaceStart = 0; // позиция в исходном тексте начала заменяемого слога
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"'\n\r]/g, function(m) {
+    switch (m) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#39;';
+      case '\n': return '<br>';
+      case '\r': return '';
+      default: return m;
+    }
+  });
+}
+
+function findLongestMatchInput(str) {
+  let longestKey = '';
+  for (const key in mappingVariants) {
+    if (str.endsWith(key)) {
+      if (key.length > longestKey.length) {
+        longestKey = key;
+      }
+    }
+  }
+  return longestKey;
+}
+
+function updatePreview() {
+  if (previewing && composing && previewCandidateChar) {
+    const before = escapeHtml(originalText.slice(0, replaceStart));
+    const underlined = escapeHtml(previewCandidateChar);
+    const after = escapeHtml(originalText.slice(originalCursor));
+    preview.innerHTML = before + `<span class="underline">${underlined}</span>` + after;
+    preview.scrollTop = input.scrollTop;
+  } else {
+    preview.textContent = input.value;
+    preview.scrollTop = input.scrollTop;
+  }
+}
+
+function showCandidates(variants) {
+  candidatesBox.innerHTML = '';
+  variants.forEach((variant, i) => {
+    const div = document.createElement('div');
+    div.textContent = variant;
+    if (i === 0) div.classList.add('selected');
+    div.addEventListener('click', () => {
+      chooseCandidate(i);
+      input.focus();
+    });
+    div.addEventListener('mouseenter', () => {
+      previewCandidate(i);
+    });
+    candidatesBox.appendChild(div);
+  });
+
+  if (!previewing) {
+    originalText = input.value;
+    originalCursor = input.selectionStart;
+    replaceStart = originalCursor - composing.length;
+    previewing = true;
+    input.classList.add('hide-caret');
+  }
+
+  candidatesBox.style.display = 'block';
+
+  previewCandidate(0);
+}
+
+function previewCandidate(index) {
+  const matchKey = findLongestMatchInput(composing);
+  if (!matchKey) return;
+
+  const variants = mappingVariants[matchKey];
+  if (!variants || !variants[index]) return;
+
+  previewCandidateChar = variants[index];
+  updatePreview();
+  status.textContent = `"${matchKey}"为、${previewCandidateChar} 見`;
+}
+
+function chooseCandidate(index) {
+  const matchKey = findLongestMatchInput(composing);
+  if (!matchKey) return;
+
+  const variants = mappingVariants[matchKey];
+  const selected = variants[index];
+  if (!selected) return;
+
+  if (!previewing) {
+    const fullText = input.value;
+    const cursorPos = input.selectionStart;
+    const startReplace = cursorPos - composing.length;
+    const newText = fullText.slice(0, startReplace) + selected + fullText.slice(cursorPos);
+
+    input.value = newText;
+    input.selectionStart = input.selectionEnd = startReplace + selected.length;
+  } else {
+    const newText = originalText.slice(0, replaceStart) + selected + originalText.slice(originalCursor);
+
+    input.value = newText;
+    input.selectionStart = input.selectionEnd = replaceStart + selected.length;
+  }
+
+  composing = '';
+  previewCandidateChar = '';
+  previewing = false;
+  candidatesBox.style.display = 'none';
+  status.textContent = '';
+
+  input.classList.remove('hide-caret');
+  input.focus();
+  updatePreview();
+}
+
+input.addEventListener('input', () => {
+  const cursorPos = input.selectionStart;
+  const textBeforeCursor = input.value.slice(0, cursorPos);
+
+  const match = textBeforeCursor.match(/[\w`~\-\.\[\]\,\/]+$/);
+
+  composing = match ? match[0] : '';
+
+  if (composing) {
+    const longestMatch = findLongestMatchInput(composing);
+    if (longestMatch) {
+      const variants = mappingVariants[longestMatch];
+      if (variants && variants.length > 0) {
+        if (!previewing) {
+          originalText = input.value;
+          originalCursor = cursorPos;
+          replaceStart = originalCursor - composing.length;
+          previewing = true;
+          input.classList.add('hide-caret');
+        }
+        showCandidates(variants);
+        status.textContent = `Выберите символ для "${longestMatch}"`;
+        return;
+      }
+    }
+  }
+  candidatesBox.style.display = 'none';
+  status.textContent = '';
+  previewing = false;
+  previewCandidateChar = '';
+  input.classList.remove('hide-caret');
+  updatePreview();
+});
+
+input.addEventListener('scroll', () => {
+  preview.scrollTop = input.scrollTop;
+});
+
+input.addEventListener('keydown', (e) => {
+  if (candidatesBox.style.display === 'block') {
+    const selectedDiv = candidatesBox.querySelector('.selected');
+    if (!selectedDiv) return;
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') {
+      e.preventDefault();
+      const items = Array.from(candidatesBox.children);
+      let idx = items.indexOf(selectedDiv);
+      if (e.key === 'ArrowDown' || e.key === 'Tab') {
+        idx = (idx + 1) % items.length;
+      } else {
+        idx = (idx - 1 + items.length) % items.length;
+      }
+      selectedDiv.classList.remove('selected');
+      items[idx].classList.add('selected');
+      previewCandidate(idx);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const items = Array.from(candidatesBox.children);
+      const idx = items.indexOf(selectedDiv);
+      chooseCandidate(idx);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      candidatesBox.style.display = 'none';
+      composing = '';
+      status.textContent = '';
+      previewing = false;
+      previewCandidateChar = '';
+      input.classList.remove('hide-caret');
+      updatePreview();
+    }
+  }
+});
+
+//-- Revers
+const reverseMap = {};
+for (const [latin, chars] of Object.entries(mappingVariants)) {
+  for (const ch of chars) {
+    if (ch === "") continue;
+    if (!(ch in reverseMap)) reverseMap[ch] = latin;
+  }
+}
+
+function convert() {
+  const inputValue = document.getElementById("ime-input").value.trim();
+  if (!inputValue) {
+    document.getElementById("output").textContent = "";
+    return;
+  }
+
+  let result = "";
+  for (const ch of inputValue) {
+    if (reverseMap[ch]) {
+      result += reverseMap[ch] + " ";
+    } else {
+      result += ch;
+    }
+  }
+  
+  document.getElementById("output").textContent = result.trim();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("convert-btn").addEventListener("click", convert);
+});
+</script>
+
+</body>
+</html>
